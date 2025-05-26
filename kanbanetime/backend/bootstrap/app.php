@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->api([
+            \Illuminate\Http\Middleware\HandleCors::class, // Make sure this is here
+            // your other middleware
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
