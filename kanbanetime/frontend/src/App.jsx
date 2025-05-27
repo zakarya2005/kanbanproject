@@ -3,10 +3,11 @@ import Landing from './pages/Landing';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Board from './pages/Board';
+import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = function() {
-
   return (
     <BrowserRouter>
       <Routes>
@@ -30,9 +31,18 @@ const App = function() {
             <Dashboard />
           </ProtectedRoute>
         } />
+        <Route path="/boards/:id" element={
+          <ProtectedRoute requireAuth={true}>
+            <Board />
+          </ProtectedRoute>
+        } />
+        <Route path="*" element={
+            <NotFound />
+        } />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
+

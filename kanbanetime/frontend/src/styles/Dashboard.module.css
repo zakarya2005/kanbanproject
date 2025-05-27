@@ -1,0 +1,221 @@
+
+
+.boards {
+    width: 100%;
+    padding: 0 1rem;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.add {
+    background-color: white;
+    color: #6c757d;
+    border: 2px dashed #dee2e6;
+    font-size: 3rem;
+    font-weight: 300;
+    min-height: 120px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.add:hover {
+    border-color: #3498db;
+    color: #3498db;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.2);
+}
+
+.board {
+    background-color: white;
+    color: #2c3e50;
+    min-height: 120px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-weight: 500;
+    font-size: 1.1rem;
+    text-align: center;
+    padding: 1rem;
+}
+
+.board:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #6c757d;
+    font-size: 1.1rem;
+    padding: 2rem;
+}
+
+.popupBackdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.addBoardPopup {
+    background-color: white;
+    width: 100%;
+    max-width: 400px;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    animation: popupSlideIn 0.3s ease-out;
+}
+
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.popupHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.5rem 0;
+    margin-bottom: 1rem;
+}
+
+.popupHeader h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.4rem;
+    font-weight: 500;
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.closeButton:hover {
+    background-color: #f8f9fa;
+    color: #e74c3c;
+}
+
+.addBoardPopup input {
+    margin: 0 1.5rem;
+    padding: 0.8rem;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.addBoardPopup input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.addBoardPopup input:disabled {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+}
+
+.addBoardPopup button[type="submit"] {
+    margin: 1rem 1.5rem 1.5rem;
+    padding: 0.8rem;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.addBoardPopup button[type="submit"]:hover:not(:disabled) {
+    background-color: #2980b9;
+    transform: translateY(-1px);
+}
+
+.addBoardPopup button[type="submit"]:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.logoutButton{
+    height: 40px;
+    width: 40px;
+    border-radius: 50%;
+    background-color: #f7f7f7;
+    box-shadow: 0 0 .5rem rgba(255, 0, 0, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: .2s;
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    &:hover{
+        box-shadow: 0 0 1rem rgba(255, 0, 0, 1);
+    }
+}
+
+.noBoards{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    >button{
+        padding: .7rem;
+        background-color: #2980b9;
+        color: #f7f7f7;
+        border-radius: 5rem;
+    }
+}

@@ -14,9 +14,11 @@ return new class extends Migration
             $table->enum('status', ['todo', 'doing', 'done', 'stopped']);
             $table->unsignedBigInteger('board_id');
             $table->unsignedBigInteger('user_id');
+            $table->integer('order');
             $table->timestamps();
             $table->foreign('board_id')->references('id')->on('boards')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->unique(['board_id', 'status', 'order']);
         });
     }
 

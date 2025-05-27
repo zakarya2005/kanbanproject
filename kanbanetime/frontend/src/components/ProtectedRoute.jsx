@@ -2,35 +2,28 @@ import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { checkAuthStatus } from '../actions/authActions';
+import './Spinner.css';
 
 const ProtectedRoute = ({ children, requireAuth = true }) => {
     const dispatch = useDispatch();
-    const { isAuthenticated, isLoading } = useSelector(state => state.user);
+    const { isAuthenticated, isCheckingAuth } = useSelector(state => state.user);
 
     useEffect(() => {
         dispatch(checkAuthStatus());
     }, [dispatch]);
 
-    if (isLoading) {
+    if (isCheckingAuth) {
         return (
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '100vh',
-                fontSize: '18px'
-            }}>
-                Loading...
+            <div className="spinner-container">
+                <div className="spinner"></div>
             </div>
         );
     }
 
-    // If route requires authentication and user is not authenticated, redirect to landing
     if (requireAuth && !isAuthenticated) {
         return <Navigate to="/" replace />;
     }
 
-    // If route doesn't require authentication (public routes) and user is authenticated, redirect to dashboard
     if (!requireAuth && isAuthenticated) {
         return <Navigate to="/dashboard" replace />;
     }

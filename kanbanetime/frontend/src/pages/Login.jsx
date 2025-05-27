@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import styles from "../styles/Signup.module.css";
+import styles from "../styles/Login.module.css";
 import { useCallback, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { loginUser, clearError } from "../actions/authActions";
@@ -7,7 +7,7 @@ import { loginUser, clearError } from "../actions/authActions";
 const Login = function() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
-    const { isLoading, error } = useSelector(state => state.user);
+    const { isLoggingIn, error } = useSelector(state => state.user);
     
     const [formData, setFormData] = useState({
         'username': "",
@@ -23,6 +23,7 @@ const Login = function() {
         if (result.success) {
             navigate('/dashboard');
         }
+        // Don't clear form data on failure - let user retry with same values
     }, [formData, navigate, dispatch]);
 
     const handleChange = useCallback(function(e) {
@@ -47,7 +48,7 @@ const Login = function() {
                         value={formData.username}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isLoggingIn}
                     />
                 </div>
                 <label htmlFor="password">password</label>
@@ -59,13 +60,13 @@ const Login = function() {
                         value={formData.password}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isLoggingIn}
                     />
                 </div>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? 'loading...' : 'login'}
+                <button type="submit" disabled={isLoggingIn}>
+                    {isLoggingIn ? 'loading...' : 'login'}
                 </button>
-                {error && <p style={{color: "red"}}>{error}</p>}
+                {error && <div>{error}</div>}
                 <Link to="/signup">I don't have an account</Link>
             </form>
         </div>

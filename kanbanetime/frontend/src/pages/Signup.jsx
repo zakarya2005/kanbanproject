@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import styles from "../styles/Signup.module.css";
+import styles from "../styles/Login.module.css";
 import { useCallback, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { registerUser, clearError } from "../actions/authActions";
@@ -7,7 +7,7 @@ import { registerUser, clearError } from "../actions/authActions";
 const Signup = function() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
-    const { isLoading, error } = useSelector(state => state.user);
+    const { isRegistering, error } = useSelector(state => state.user);
     
     const [formData, setFormData] = useState({
         'username': "",
@@ -25,6 +25,7 @@ const Signup = function() {
         if (result.success) {
             navigate('/dashboard');
         }
+        // Don't clear form data on failure - let user retry with same values
     }, [formData, navigate, dispatch]);
 
     const handleChange = useCallback(function(e) {
@@ -49,7 +50,7 @@ const Signup = function() {
                         value={formData.username}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isRegistering}
                     />
                 </div>
                 <label htmlFor="email">email</label>
@@ -61,7 +62,7 @@ const Signup = function() {
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isRegistering}
                     />
                 </div>
                 <label htmlFor="password">password</label>
@@ -73,7 +74,7 @@ const Signup = function() {
                         value={formData.password}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isRegistering}
                     />
                 </div>
                 <label htmlFor="password_confirmation">password confirmation</label>
@@ -85,13 +86,13 @@ const Signup = function() {
                         value={formData.password_confirmation}
                         onChange={handleChange}
                         required
-                        disabled={isLoading}
+                        disabled={isRegistering}
                     />
                 </div>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? 'loading...' : 'sign up'}
+                <button type="submit" disabled={isRegistering}>
+                    {isRegistering ? 'loading...' : 'sign up'}
                 </button>
-                {error && <p style={{color: "red"}}>{error}</p>}
+                {error && <div>{error}</div>}
                 <Link to="/login">I already have an account</Link>
             </form>
         </div>

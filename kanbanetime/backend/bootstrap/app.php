@@ -13,8 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api([
-            \Illuminate\Http\Middleware\HandleCors::class, // Make sure this is here
-            // your other middleware
+            \Illuminate\Http\Middleware\HandleCors::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

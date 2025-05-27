@@ -1,192 +1,195 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
-const jwt = require('jsonwebtoken');
-const dotenv = require('dotenv');
+const socketIo = require('socket.io');
 const cors = require('cors');
-const cookieParser = require('cookie-parser');
 
-// Load environment variables
-dotenv.config();
-
-// Create Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Configure middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  credentials: true
-}));
-app.use(cookieParser());
-
-// Configure Socket.IO with CORS
-const io = new Server(server, {
+// Configure CORS for Socket.IO
+const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL,
-    methods: ['GET', 'POST'],
+    origin: "http://localhost:3000", // React app URL
+    methods: ["GET", "POST"],
     credentials: true
   }
 });
 
-// Socket middleware for authentication
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token || 
-                socket.handshake.headers.cookie?.split(';')
-                  .find(c => c.trim().startsWith('access_token='))
-                  ?.split('=')[1];
-  
-  if (!token) {
-    return next(new Error('Authentication error: No token provided'));
-  }
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.user = { id: decoded.user_id };
-    next();
-  } catch (err) {
-    return next(new Error('Authentication error: Invalid token'));
-  }
-});
+// Store active connections per board
+const boardConnections = new Map();
 
-// Store active users and their board subscriptions
-const activeUsers = new Map();
-const boardRooms = new Map();
-
-// Handle socket connections
 io.on('connection', (socket) => {
-  console.log(`User ${socket.user.id} connected`);
-  
-  // Track active user
-  activeUsers.set(socket.user.id, socket.id);
-  
-  // Join board room
-  socket.on('join-board', (boardId) => {
-    console.log(`User ${socket.user.id} joined board ${boardId}`);
+  console.log('User connected:', socket.id);
+
+  // Join a board room
+  socket.on('join-board', (boardId, userId) => {
+    socket.join(`board-${boardId}`);
     
-    // Leave any previous boards
-    socket.rooms.forEach(room => {
-      if (room !== socket.id && room.startsWith('board:')) {
-        socket.leave(room);
-      }
+    // Track connections per board
+    if (!boardConnections.has(boardId)) {
+      boardConnections.set(boardId, new Set());
+    }
+    boardConnections.get(boardId).add(socket.id);
+    
+    console.log(`User ${userId} joined board ${boardId}`);
+    
+    // Notify others in the board about the new connection
+    socket.to(`board-${boardId}`).emit('user-joined', {
+      userId,
+      socketId: socket.id
     });
     
-    const roomName = `board:${boardId}`;
-    socket.join(roomName);
+    // Send current online count
+    const onlineCount = boardConnections.get(boardId).size;
+    io.to(`board-${boardId}`).emit('online-count', onlineCount);
+  });
+
+  // Leave a board room
+  socket.on('leave-board', (boardId, userId) => {
+    socket.leave(`board-${boardId}`);
     
-    // Track users in this board
-    if (!boardRooms.has(roomName)) {
-      boardRooms.set(roomName, new Set());
-    }
-    boardRooms.get(roomName).add(socket.user.id);
-    
-    // Emit user list to all members in the room
-    const members = Array.from(boardRooms.get(roomName));
-    io.to(roomName).emit('board-members', { members });
-  });
-  
-  // Handle board events
-  socket.on('board-updated', (data) => {
-    const roomName = `board:${data.boardId}`;
-    socket.to(roomName).emit('board-updated', data);
-  });
-  
-  // Handle task events
-  socket.on('task-created', (task) => {
-    const roomName = `board:${task.board_id}`;
-    socket.to(roomName).emit('task-created', task);
-  });
-  
-  socket.on('task-updated', (task) => {
-    const roomName = `board:${task.board_id}`;
-    socket.to(roomName).emit('task-updated', task);
-  });
-  
-  socket.on('task-deleted', (data) => {
-    const roomName = `board:${data.boardId}`;
-    socket.to(roomName).emit('task-deleted', { taskId: data.taskId });
-  });
-  
-  // Handle member events
-  socket.on('member-added', (data) => {
-    const roomName = `board:${data.boardId}`;
-    socket.to(roomName).emit('member-added', data);
-    
-    // Notify the added user if they're online
-    if (activeUsers.has(data.userId)) {
-      io.to(activeUsers.get(data.userId)).emit('board-invitation', {
-        boardId: data.boardId,
-        role: data.role
-      });
-    }
-  });
-  
-  socket.on('member-removed', (data) => {
-    const roomName = `board:${data.boardId}`;
-    socket.to(roomName).emit('member-removed', data);
-    
-    // Notify the removed user if they're online
-    if (activeUsers.has(data.userId)) {
-      io.to(activeUsers.get(data.userId)).emit('board-removal', {
-        boardId: data.boardId
-      });
-    }
-  });
-  
-  socket.on('member-role-updated', (data) => {
-    const roomName = `board:${data.boardId}`;
-    socket.to(roomName).emit('member-role-updated', data);
-    
-    // Notify the affected user if they're online
-    if (activeUsers.has(data.userId)) {
-      io.to(activeUsers.get(data.userId)).emit('role-changed', {
-        boardId: data.boardId,
-        role: data.role
-      });
-    }
-  });
-  
-  // Leave board
-  socket.on('leave-board', (boardId) => {
-    const roomName = `board:${boardId}`;
-    socket.leave(roomName);
-    
-    if (boardRooms.has(roomName)) {
-      boardRooms.get(roomName).delete(socket.user.id);
+    if (boardConnections.has(boardId)) {
+      boardConnections.get(boardId).delete(socket.id);
       
-      // Update member list for remaining users
-      const members = Array.from(boardRooms.get(roomName));
-      io.to(roomName).emit('board-members', { members });
+      // Clean up empty board connections
+      if (boardConnections.get(boardId).size === 0) {
+        boardConnections.delete(boardId);
+      } else {
+        const onlineCount = boardConnections.get(boardId).size;
+        io.to(`board-${boardId}`).emit('online-count', onlineCount);
+      }
     }
+    
+    console.log(`User ${userId} left board ${boardId}`);
+    socket.to(`board-${boardId}`).emit('user-left', {
+      userId,
+      socketId: socket.id
+    });
   });
-  
+
+  // Task created
+  socket.on('task-created', (data) => {
+    const { boardId, task, userId } = data;
+    socket.to(`board-${boardId}`).emit('task-created', {
+      task,
+      createdBy: userId
+    });
+    console.log(`Task created in board ${boardId} by user ${userId}`);
+  });
+
+  // Task updated (content or status change)
+  socket.on('task-updated', (data) => {
+    const { boardId, task, userId, previousStatus } = data;
+    socket.to(`board-${boardId}`).emit('task-updated', {
+      task,
+      updatedBy: userId,
+      previousStatus
+    });
+    console.log(`Task ${task.id} updated in board ${boardId} by user ${userId}`);
+  });
+
+  // Task deleted
+  socket.on('task-deleted', (data) => {
+    const { boardId, taskId, userId } = data;
+    socket.to(`board-${boardId}`).emit('task-deleted', {
+      taskId,
+      deletedBy: userId
+    });
+    console.log(`Task ${taskId} deleted in board ${boardId} by user ${userId}`);
+  });
+
+  // Board updated (name change)
+  socket.on('board-updated', (data) => {
+    const { boardId, board, userId } = data;
+    socket.to(`board-${boardId}`).emit('board-updated', {
+      board,
+      updatedBy: userId
+    });
+    console.log(`Board ${boardId} updated by user ${userId}`);
+  });
+
+  // Member added
+  socket.on('member-added', (data) => {
+    const { boardId, member, userId } = data;
+    socket.to(`board-${boardId}`).emit('member-added', {
+      member,
+      addedBy: userId
+    });
+    console.log(`Member added to board ${boardId} by user ${userId}`);
+  });
+
+  // Member removed
+  socket.on('member-removed', (data) => {
+    const { boardId, memberId, userId } = data;
+    socket.to(`board-${boardId}`).emit('member-removed', {
+      memberId,
+      removedBy: userId
+    });
+    console.log(`Member ${memberId} removed from board ${boardId} by user ${userId}`);
+  });
+
+  // Member role updated
+  socket.on('member-role-updated', (data) => {
+    const { boardId, memberId, newRole, userId } = data;
+    socket.to(`board-${boardId}`).emit('member-role-updated', {
+      memberId,
+      newRole,
+      updatedBy: userId
+    });
+    console.log(`Member ${memberId} role updated to ${newRole} in board ${boardId} by user ${userId}`);
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
-    console.log(`User ${socket.user.id} disconnected`);
+    console.log('User disconnected:', socket.id);
     
-    // Remove user from active users
-    activeUsers.delete(socket.user.id);
-    
-    // Remove user from all board rooms
-    boardRooms.forEach((users, roomName) => {
-      if (users.has(socket.user.id)) {
-        users.delete(socket.user.id);
+    // Clean up board connections
+    for (const [boardId, connections] of boardConnections.entries()) {
+      if (connections.has(socket.id)) {
+        connections.delete(socket.id);
         
-        // Update member list for remaining users
-        const members = Array.from(users);
-        io.to(roomName).emit('board-members', { members });
+        if (connections.size === 0) {
+          boardConnections.delete(boardId);
+        } else {
+          const onlineCount = connections.size;
+          io.to(`board-${boardId}`).emit('online-count', onlineCount);
+        }
+        
+        socket.to(`board-${boardId}`).emit('user-disconnected', {
+          socketId: socket.id
+        });
+        break;
       }
+    }
+  });
+
+  // Typing indicators for real-time collaboration
+  socket.on('user-typing', (data) => {
+    const { boardId, userId, username, columnId } = data;
+    socket.to(`board-${boardId}`).emit('user-typing', {
+      userId,
+      username,
+      columnId,
+      socketId: socket.id
+    });
+  });
+
+  socket.on('user-stopped-typing', (data) => {
+    const { boardId, userId, columnId } = data;
+    socket.to(`board-${boardId}`).emit('user-stopped-typing', {
+      userId,
+      columnId,
+      socketId: socket.id
     });
   });
 });
 
-// Simple health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-// Start server
-const PORT = process.env.SOCKET_PORT;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Socket.IO server running on port ${PORT}`);
 });

@@ -20,6 +20,7 @@ Route::middleware(AuthMiddleware::class)->group(function () {
     Route::put('/boards/{id}', [BoardController::class, 'update']);
     Route::delete('/boards/{id}', [BoardController::class, 'destroy']);
     
+    Route::get('/boards/{id}/members', [BoardController::class, 'getMembers']);
     Route::post('/boards/{boardId}/members', [BoardController::class, 'addMember']);
     Route::delete('/boards/{boardId}/members/{memberId}', [BoardController::class, 'removeMember']);
     Route::put('/boards/{boardId}/members/{memberId}', [BoardController::class, 'updateMemberRole']);

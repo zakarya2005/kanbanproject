@@ -21,6 +21,23 @@ export const clearError = () => ({
     type: 'CLEAR_ERROR'
 });
 
+// New action types for different loading states
+export const loginStart = () => ({
+    type: 'LOGIN_START'
+});
+
+export const registerStart = () => ({
+    type: 'REGISTER_START'
+});
+
+export const authCheckStart = () => ({
+    type: 'AUTH_CHECK_START'
+});
+
+export const authCheckComplete = () => ({
+    type: 'AUTH_CHECK_COMPLETE'
+});
+
 // Helper function to get CSRF token from cookies
 const getCsrfToken = () => {
     const cookies = document.cookie.split(';');
@@ -56,7 +73,7 @@ const makeAuthenticatedRequest = async (url, options = {}) => {
 // Thunk actions
 export const checkAuthStatus = () => {
     return async (dispatch) => {
-        dispatch(authStart());
+        dispatch(authCheckStart());
         
         try {
             const response = await makeAuthenticatedRequest('http://localhost:8000/api/user', {
@@ -86,23 +103,27 @@ export const checkAuthStatus = () => {
                         const userData = await retryResponse.json();
                         dispatch(authSuccess(userData));
                     } else {
-                        dispatch(authFailure('Authentication failed'));
+                        // Silent failure for auth check - don't show error
+                        dispatch(authCheckComplete());
                     }
                 } else {
-                    dispatch(authFailure('Authentication failed'));
+                    // Silent failure for auth check - don't show error
+                    dispatch(authCheckComplete());
                 }
             } else {
-                dispatch(authFailure('Authentication check failed'));
+                // Silent failure for auth check - don't show error
+                dispatch(authCheckComplete());
             }
         } catch (error) {
-            dispatch(authFailure('Network error'));
+            // Silent failure for auth check - don't show error
+            dispatch(authCheckComplete());
         }
     };
 };
 
 export const loginUser = (credentials) => {
     return async (dispatch) => {
-        dispatch(authStart());
+        dispatch(loginStart());
 
         try {
             const response = await fetch('http://localhost:8000/api/login', {
@@ -144,7 +165,7 @@ export const loginUser = (credentials) => {
 
 export const registerUser = (userData) => {
     return async (dispatch) => {
-        dispatch(authStart());
+        dispatch(registerStart());
 
         try {
             const response = await fetch('http://localhost:8000/api/register', {

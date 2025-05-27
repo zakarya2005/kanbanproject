@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import styles from '../styles/Landing.module.css';
+import { useDispatch, useSelector } from 'react-redux';
+import { checkAuthStatus } from '../actions/authActions';
 
 const splitTextElement = function (element) {
     const text = element.textContent;
@@ -12,6 +14,7 @@ const splitTextElement = function (element) {
 };
 
 const animateLetterByLetter = function (element) {
+
     splitTextElement(element);
     const letters = element.querySelectorAll('span');
     letters.forEach((letter, index) => {
@@ -30,6 +33,7 @@ const animateLetterByLetter = function (element) {
 };
 
 const Landing = function () {
+
     const titleRef = useRef(null);
 
     useEffect(() => {
@@ -42,7 +46,7 @@ const Landing = function () {
         <div className={styles.viewport}>
             <div className={styles.container}>
                 <h1>
-                    <img src="/logo.svg" width="100px" alt="Logo" />
+                    <img src="/logo-color.svg" width="100px" alt="Logo" />
                     <span ref={titleRef}>Kantime</span>
                 </h1>
                 <h3>

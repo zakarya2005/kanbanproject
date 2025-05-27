@@ -1,6 +1,6 @@
 .viewport{
     width: 100%;
-    background: linear-gradient(to top, #2a212c, #18161e);
+    background: #f7f7f7;
 }
 
 .container{
@@ -22,19 +22,19 @@
             width: clamp(2rem, 10vw, 5rem);
         }
         >span{
-            color: #f7f7f7;
+            color: #2980b9;
             font-size: clamp(3rem, 10vw, 6rem);
         }
     }
     >h3{
         margin-top: -1rem;
         margin-bottom: 2rem;
-        color: #f7f7f7;
+        color: #333;
         font-weight: 300;
         text-align: center;
         >span{
             font-weight: 900;
-            color: rgb(203, 132, 247);
+            color: #58a5d9;
         }
     }
 }
@@ -53,18 +53,18 @@
         }
     }
     >a:nth-child(1){
-        color: #f7f7f7;
+        color: #2980b9;
         font-weight: 900;
         padding: .6rem 1.5rem;
         border-radius: 5rem;
-        border: 2px solid #f7f7f7;
+        border: 2px solid #2980b9;
     }
     >a:nth-child(2){
-        color: #18161e;
+        color: #f7f7f7;
         font-weight: 900;
         padding: .6rem 2rem;
         border-radius: 5rem;
-        border: 2px solid #f7f7f7;
-        background-color: #f7f7f7;
+        border: 2px solid #2980b9;
+        background-color: #2980b9;
     }
 }

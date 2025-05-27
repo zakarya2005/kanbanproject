@@ -1,16 +1,35 @@
 const initialState = {
     user: null,
     isAuthenticated: false,
-    isLoading: false,
+    isCheckingAuth: false,
+    isLoggingIn: false,
+    isRegistering: false,
     error: null,
 };
 
 const userReducer = function(state = initialState, action) {
     switch (action.type) {
-        case 'AUTH_START':
+        case 'AUTH_CHECK_START':
             return {
                 ...state,
-                isLoading: true,
+                isCheckingAuth: true,
+                error: null,
+            };
+        case 'AUTH_CHECK_COMPLETE':
+            return {
+                ...state,
+                isCheckingAuth: false,
+            };
+        case 'LOGIN_START':
+            return {
+                ...state,
+                isLoggingIn: true,
+                error: null,
+            };
+        case 'REGISTER_START':
+            return {
+                ...state,
+                isRegistering: true,
                 error: null,
             };
         case 'AUTH_SUCCESS':
@@ -18,7 +37,9 @@ const userReducer = function(state = initialState, action) {
                 ...state,
                 user: action.payload,
                 isAuthenticated: true,
-                isLoading: false,
+                isCheckingAuth: false,
+                isLoggingIn: false,
+                isRegistering: false,
                 error: null,
             };
         case 'AUTH_FAILURE':
@@ -26,7 +47,9 @@ const userReducer = function(state = initialState, action) {
                 ...state,
                 user: null,
                 isAuthenticated: false,
-                isLoading: false,
+                isCheckingAuth: false,
+                isLoggingIn: false,
+                isRegistering: false,
                 error: action.payload,
             };
         case 'LOGOUT':
@@ -34,7 +57,9 @@ const userReducer = function(state = initialState, action) {
                 ...state,
                 user: null,
                 isAuthenticated: false,
-                isLoading: false,
+                isCheckingAuth: false,
+                isLoggingIn: false,
+                isRegistering: false,
                 error: null,
             };
         case 'CLEAR_ERROR':

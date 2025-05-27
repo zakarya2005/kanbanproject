@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Board;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -129,13 +130,39 @@ class BoardController extends Controller
         }
     }
 
+    public function getMembers(Request $request, $id)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $isMember = DB::table('board_members')
+            ->where('user_id', $user->id)
+            ->where('board_id', $id)
+            ->exists();
+
+        if (!$isMember) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $members = DB::table('board_members')
+            ->join('users', 'board_members.user_id', '=', 'users.id')
+            ->where('board_members.board_id', $id)
+            ->select('board_members.role', 'users.id as user_id', 'users.username')
+            ->get();
+
+        return response()->json(['members' => $members], 200);
+    }
+
     public function addMember(Request $request, $boardId)
     {
         $user = $request->user();
 
+        // Fix the validation - check username exists in username field
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'role' => 'required|in:admin,member,readOnly',
+            'username' => 'required|exists:users,username',
         ]);
 
         $isAdmin = DB::table('board_members')
@@ -148,13 +175,33 @@ class BoardController extends Controller
             return response()->json(['error' => 'Only admins can add members'], 403);
         }
 
-        try {
-            DB::table('board_members')->updateOrInsert(
-                ['board_id' => $boardId, 'user_id' => $validated['user_id']],
-                ['role' => $validated['role'], 'updated_at' => now(), 'created_at' => now()]
-            );
+        // Find user by username
+        $user_being_added = User::where('username', $validated['username'])->first();
+        
+        if (!$user_being_added) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
 
-            return response()->json(['message' => 'Member added/updated successfully']);
+        $user_id = $user_being_added->id;
+
+        // Check if user is already a member
+        $existingMember = DB::table('board_members')
+            ->where('board_id', $boardId)
+            ->where('user_id', $user_id)
+            ->exists();
+
+        if ($existingMember) {
+            return response()->json(['error' => 'User is already a member of this board'], 409);
+        }
+
+        try {
+            DB::table('board_members')->insert([
+                'board_id' => $boardId,
+                'user_id' => $user_id,
+                'role' => 'readOnly', // or 'member' - be consistent
+            ]);
+
+            return response()->json(['message' => 'Member added successfully'], 201);
         } catch (Exception $e) {
             return response()->json([
                 'error' => 'Failed to add member',
@@ -167,23 +214,54 @@ class BoardController extends Controller
     {
         $user = $request->user();
 
+        // Check if user is admin
         $isAdmin = DB::table('board_members')
             ->where('board_id', $boardId)
             ->where('user_id', $user->id)
             ->where('role', 'admin')
             ->exists();
 
-        if ($user->id !== (int) $memberId && !$isAdmin) {
-            return response()->json(['error' => 'Forbidden'], 403);
+        // Check if user is trying to remove themselves
+        $isSelfRemoval = $user->id == (int) $memberId;
+
+        // Allow if user is admin OR if user is removing themselves
+        if (!$isAdmin && !$isSelfRemoval) {
+            return response()->json(['error' => 'Forbidden - You can only remove yourself or be an admin to remove others'], 403);
+        }
+
+        // If user is removing themselves and they are the only admin, prevent it
+        if ($isSelfRemoval) {
+            $userRole = DB::table('board_members')
+                ->where('board_id', $boardId)
+                ->where('user_id', $user->id)
+                ->value('role');
+
+            if ($userRole === 'admin') {
+                $adminCount = DB::table('board_members')
+                    ->where('board_id', $boardId)
+                    ->where('role', 'admin')
+                    ->count();
+
+                if ($adminCount <= 1) {
+                    return response()->json([
+                        'error' => 'Cannot remove yourself - you are the only admin. Please assign another admin first or delete the board.'
+                    ], 422);
+                }
+            }
         }
 
         try {
-            DB::table('board_members')
+            $removed = DB::table('board_members')
                 ->where('board_id', $boardId)
                 ->where('user_id', $memberId)
                 ->delete();
 
-            return response()->json(['message' => 'Member removed']);
+            if ($removed) {
+                $message = $isSelfRemoval ? 'You have left the board' : 'Member removed';
+                return response()->json(['message' => $message], 200);
+            } else {
+                return response()->json(['error' => 'Member not found in this board'], 404);
+            }
         } catch (Exception $e) {
             return response()->json([
                 'error' => 'Failed to remove member',
