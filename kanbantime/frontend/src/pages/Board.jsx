@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
+import io from "socket.io-client";
 import styles from "../styles/Board.module.css";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { logoutUser } from '../actions/authActions';
 
 const Board = function() {
     const { id } = useParams();
@@ -19,6 +21,8 @@ const Board = function() {
     const [isCreatingTask, setIsCreatingTask] = useState(false);
     const [dragOverColumn, setDragOverColumn] = useState(null);
     const [showSidebar, setShowSidebar] = useState(false);
+    const [onlineCount, setOnlineCount] = useState(0);
+    const [typingUsers, setTypingUsers] = useState({});
     
     // Member management states
     const [newMemberUsername, setNewMemberUsername] = useState("");
@@ -31,6 +35,8 @@ const Board = function() {
     const [isDeletingBoard, setIsDeletingBoard] = useState(false);
 
     const { user } = useSelector(state => state.user);
+    const socketRef = useRef(null);
+    const typingTimeoutRef = useRef({});
 
     const columns = [
         { id: 'todo', title: 'To Do', color: '#e3f2fd' },
@@ -39,7 +45,134 @@ const Board = function() {
         { id: 'stopped', title: 'Stopped', color: '#ffebee' }
     ];
 
-    // ... (keep all your existing fetch functions unchanged)
+    const dispatch = useDispatch();
+
+    // Socket.IO setup and cleanup
+    useEffect(() => {
+        if (!user || !id) return;
+
+        // Initialize socket connection
+        socketRef.current = io('http://localhost:3001', {
+            withCredentials: true,
+            transports: ['websocket']
+        });
+
+        const socket = socketRef.current;
+
+        // Join the board room
+        socket.emit('join-board', id, user.id);
+
+        // Socket event listeners
+        socket.on('online-count', (count) => {
+            setOnlineCount(count);
+        });
+
+        socket.on('task-created', (data) => {
+            fetchTasks(); // Refresh tasks to get the new one
+        });
+
+        socket.on('task-updated', (data) => {
+            fetchTasks(); // Refresh tasks to get updates
+        });
+
+        socket.on('task-deleted', (data) => {
+            setTasks(prevTasks => prevTasks.filter(task => task.id !== data.taskId));
+        });
+
+        socket.on('board-updated', (data) => {
+            setBoard(data.board);
+            setBoardName(data.board.name);
+        });
+
+        socket.on('member-added', (data) => {
+            fetchMembers(); // Refresh members list
+        });
+
+        socket.on('member-removed', (data) => {
+            fetchMembers(); // Refresh members list
+        });
+
+        socket.on('member-role-updated', (data) => {
+            fetchMembers(); // Refresh members list
+        });
+
+        socket.on('user-typing', (data) => {
+            if (data.userId !== user.id) {
+                setTypingUsers(prev => ({
+                    ...prev,
+                    [data.columnId]: {
+                        ...prev[data.columnId],
+                        [data.userId]: {
+                            username: data.username,
+                            socketId: data.socketId
+                        }
+                    }
+                }));
+            }
+        });
+
+        socket.on('user-stopped-typing', (data) => {
+            if (data.userId !== user.id) {
+                setTypingUsers(prev => {
+                    const newState = { ...prev };
+                    if (newState[data.columnId]) {
+                        delete newState[data.columnId][data.userId];
+                        if (Object.keys(newState[data.columnId]).length === 0) {
+                            delete newState[data.columnId];
+                        }
+                    }
+                    return newState;
+                });
+            }
+        });
+
+        // Cleanup on unmount or when dependencies change
+        return () => {
+            socket.emit('leave-board', id, user.id);
+            socket.disconnect();
+        };
+    }, [user, id]);
+
+    // Typing indicator functions
+    const handleTypingStart = (columnId) => {
+        if (socketRef.current && user) {
+            socketRef.current.emit('user-typing', {
+                boardId: id,
+                userId: user.id,
+                username: user.username,
+                columnId
+            });
+        }
+    };
+
+    const handleTypingStop = (columnId) => {
+        if (socketRef.current && user) {
+            socketRef.current.emit('user-stopped-typing', {
+                boardId: id,
+                userId: user.id,
+                columnId
+            });
+        }
+    };
+
+    const handleTaskInputChange = (e, columnId) => {
+        setNewTaskContent(e.target.value);
+        
+        // Handle typing indicators
+        handleTypingStart(columnId);
+        
+        // Clear existing timeout for this column
+        if (typingTimeoutRef.current[columnId]) {
+            clearTimeout(typingTimeoutRef.current[columnId]);
+        }
+        
+        // Set new timeout to stop typing indicator
+        typingTimeoutRef.current[columnId] = setTimeout(() => {
+            handleTypingStop(columnId);
+        }, 1000);
+    };
+
+    // Existing fetch functions (unchanged)
     const fetchBoard = async () => {
         try {
             const csrf_token = Cookies.get('csrf_token');
@@ -123,7 +256,7 @@ const Board = function() {
         }
     };
 
-    // ... (keep all your existing CRUD functions unchanged)
+    // Enhanced CRUD functions with socket emissions
     const addMember = async (e) => {
         e.preventDefault();
         if (!newMemberUsername.trim()) return;
@@ -148,9 +281,19 @@ const Board = function() {
             });
             
             if (response.ok) {
+                const data = await response.json();
                 setNewMemberUsername("");
                 fetchMembers();
                 setMemberError("");
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('member-added', {
+                        boardId: id,
+                        member: data.member,
+                        userId: user.id
+                    });
+                }
             } else {
                 const errorData = await response.json();
                 setMemberError(errorData.error || "Failed to add member");
@@ -179,6 +322,15 @@ const Board = function() {
             });
             
             if (response.ok) {
+                // Emit socket event before navigation
+                if (socketRef.current) {
+                    socketRef.current.emit('member-removed', {
+                        boardId: id,
+                        memberId,
+                        userId: user.id
+                    });
+                }
+                
                 if (isSelfRemoval) {
                     navigate('/dashboard');
                 } else {
@@ -211,6 +363,16 @@ const Board = function() {
             
             if (response.ok) {
                 fetchMembers();
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('member-role-updated', {
+                        boardId: id,
+                        memberId,
+                        newRole,
+                        userId: user.id
+                    });
+                }
             } else {
                 console.error('Failed to update member role:', response.status);
             }
@@ -239,6 +401,15 @@ const Board = function() {
             if (response.ok) {
                 const data = await response.json();
                 setBoard(data.board);
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('board-updated', {
+                        boardId: id,
+                        board: data.board,
+                        userId: user.id
+                    });
+                }
             } else {
                 console.error('Failed to update board:', response.status);
             }
@@ -302,9 +473,22 @@ const Board = function() {
             });
             
             if (response.ok) {
+                const data = await response.json();
                 setNewTaskContent("");
                 setShowAddTask(null);
                 fetchTasks();
+                
+                // Stop typing indicator
+                handleTypingStop(status);
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('task-created', {
+                        boardId: id,
+                        task: data.task,
+                        userId: user.id
+                    });
+                }
             } else {
                 console.error('Failed to create task:', response.status);
             }
@@ -319,6 +503,8 @@ const Board = function() {
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
 
+        const previousStatus = task.status;
+        
         try {
             const csrf_token = Cookies.get('csrf_token');
             const response = await fetch(`http://localhost:8000/api/tasks/${taskId}`, {
@@ -336,7 +522,18 @@ const Board = function() {
             });
             
             if (response.ok) {
+                const data = await response.json();
                 fetchTasks();
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('task-updated', {
+                        boardId: id,
+                        task: data.task,
+                        userId: user.id,
+                        previousStatus
+                    });
+                }
             } else {
                 console.error('Failed to update task:', response.status);
             }
@@ -359,7 +556,16 @@ const Board = function() {
             });
             
             if (response.ok) {
-                fetchTasks();
+                setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+                
+                // Emit socket event
+                if (socketRef.current) {
+                    socketRef.current.emit('task-deleted', {
+                        boardId: id,
+                        taskId,
+                        userId: user.id
+                    });
+                }
             } else {
                 console.error('Failed to delete task:', response.status);
             }
@@ -368,11 +574,10 @@ const Board = function() {
         }
     };
 
-    // FIXED DRAG AND DROP HANDLERS
+    // Drag and drop handlers (unchanged)
     const handleDragStart = (e, task) => {
         setDraggedTask(task);
         e.dataTransfer.effectAllowed = 'move';
-        // Add drag image
         e.dataTransfer.setData('text/plain', '');
     };
 
@@ -390,7 +595,6 @@ const Board = function() {
 
     const handleDragLeave = (e, columnId) => {
         e.preventDefault();
-        // Check if we're really leaving the column (not just moving to a child element)
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX;
         const y = e.clientY;
@@ -437,6 +641,30 @@ const Board = function() {
         return currentUserRole !== 'readOnly';
     };
 
+    const renderTypingIndicators = (columnId) => {
+        const columnTyping = typingUsers[columnId];
+        if (!columnTyping || Object.keys(columnTyping).length === 0) return null;
+
+        const usernames = Object.values(columnTyping).map(user => user.username);
+        const text = usernames.length === 1 
+            ? `${usernames[0]} is typing...`
+            : `${usernames.join(', ')} are typing...`;
+
+        return (
+            <div style={{
+                fontSize: '0.7rem',
+                color: '#666',
+                fontStyle: 'italic',
+                padding: '0.25rem 0.5rem',
+                backgroundColor: 'rgba(0,0,0,0.05)',
+                borderRadius: '0.25rem',
+                margin: '0.25rem 0'
+            }}>
+                {text}
+            </div>
+        );
+    };
+
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
@@ -480,6 +708,9 @@ const Board = function() {
                         <div className={styles.members}>
                             <h3>
                                 Members
+                                <span style={{ fontSize: '0.8rem', color: '#666', marginLeft: '0.5rem' }}>
+                                    ({onlineCount} online)
+                                </span>
                                 <button onClick={() => setShowSidebar(false)}>&#10006;</button>    
                             </h3>
                             
@@ -615,6 +846,18 @@ const Board = function() {
                         <button onClick={() => setShowSidebar(prev => !prev)}>
                             <img src="/side.svg" width="26px" />
                         </button>
+                        <button onClick={() => dispatch(logoutUser())} style={{
+                            width: "35px",
+                            height: "35px",
+                            borderRadius: "50%",
+                            marginLeft: "1rem",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#f7f7f7"
+                        }}>
+                            <img src="/logout.svg" width="17px" />
+                        </button>
                     </div>
                 </div>
             
@@ -660,8 +903,7 @@ const Board = function() {
                                         className={`${styles.task} ${draggedTask && draggedTask.id === task.id ? styles.dragging : ''}`}
                                         draggable={canCreateTasks()}
                                         onDragStart={(e) => handleDragStart(e, task)}
-                                        onDragEnd={handleDragEnd}
-                                    >
+                                        onDragEnd={handleDragEnd}>
                                         <div className={styles.taskContent}>
                                             {task.content}
                                         </div>
@@ -682,11 +924,14 @@ const Board = function() {
                                     </div>
                                 ))}
 
+                                {/* Typing indicators */}
+                                {renderTypingIndicators(column.id)}
+
                                 {showAddTask === column.id && canCreateTasks() && (
                                     <div className={styles.addTaskForm}>
                                         <textarea
                                             value={newTaskContent}
-                                            onChange={(e) => setNewTaskContent(e.target.value)}
+                                            onChange={(e) => handleTaskInputChange(e, column.id)}
                                             placeholder="Enter task description..."
                                             className={styles.taskInput}
                                             rows="3"
@@ -704,6 +949,7 @@ const Board = function() {
                                                 onClick={() => {
                                                     setShowAddTask(null);
                                                     setNewTaskContent("");
+                                                    handleTypingStop(column.id);
                                                 }}
                                                 className={styles.cancelTask}
                                             >

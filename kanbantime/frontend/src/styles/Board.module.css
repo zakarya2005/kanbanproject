@@ -78,6 +78,10 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.loading{
+  color: #2980b9 !important;
+}
+
 .kanbanBoard {
   display: flex;
   gap: 1.5rem;
@@ -85,7 +89,7 @@
 }
 
 .column {
-  flex-basis: min(100%, 400px);
+  flex-basis: min(100%, 300px);
   flex-shrink: 0;
   overflow-y: auto;
   background: #f7f7f7;
